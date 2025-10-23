@@ -1,4 +1,4 @@
-name: Deployment Pipeline
+name: Deployment Pipeline (Simulated)
 
 on:
   push:
@@ -8,109 +8,41 @@ on:
     branches:
       - main
 
-env:
-  NODE_VERSION: 18
-
 jobs:
-  build-and-test:
-    name: Build & Test
+  build-test-deploy:
     runs-on: ubuntu-latest
-    outputs:
-      build-artifact: ${{ steps.upload-artifact.outputs.artifact-path || '' }}
+
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          node-version: 18
 
       - name: Install dependencies
         run: npm install
 
-      - name: Build (if available)
+      - name: Build project
         run: npm run build --if-present
-
-      - name: Run linter (if configured)
-        run: |
-          if [ -f "eslint.config.js" ] || [ -f ".eslintrc.js" ] || [ -f ".eslintrc.json" ]; then
-            npm run lint || true
-          else
-            echo "No ESLint config found — skipping lint."
-          fi
 
       - name: Run tests (if any)
         run: |
           if [ -d "__tests__" ] || [ -d "tests" ]; then
             npm test || true
           else
-            echo "No tests found — skipping test step."
+            echo "No tests found — skipping tests."
           fi
 
-      - name: Upload build artifact (for Pages or debug)
-        if: always()
+      - name: Simulate Deployment
+        run: |
+          echo "Deploying application..."
+          mkdir -p deployment_output
+          echo "Deployment completed successfully at $(date)" > deployment_output/deploy_log.txt
+
+      - name: Upload Deployment Logs
         uses: actions/upload-artifact@v4
         with:
-          name: site-artifact
-          path: |
-            build/
-            dist/
-            public/
-          # If none exist, upload step still runs but finds nothing.
-
-  deploy-to-heroku:
-    name: Deploy to Heroku
-    runs-on: ubuntu-latest
-    needs: build-and-test
-    if: ${{ secrets.HEROKU_API_KEY != '' && secrets.HEROKU_APP_NAME != '' }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-
-      - name: Install dependencies
-        run: npm install
-
-      - name: Build (if present)
-        run: npm run build --if-present
-
-      - name: Deploy to Heroku
-        uses: akhileshns/heroku-deploy@v3.12.12
-        with:
-          heroku_api_key: ${{ secrets.HEROKU_API_KEY }}
-          heroku_app_name: ${{ secrets.HEROKU_APP_NAME }}
-          heroku_email: ${{ secrets.HEROKU_EMAIL || '' }}
-          usedocker: false
-
-  deploy-to-github-pages:
-    name: Deploy to GitHub Pages
-    runs-on: ubuntu-latest
-    needs: build-and-test
-    if: ${{ secrets.HEROKU_API_KEY == '' || secrets.HEROKU_APP_NAME == '' }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-
-      - name: Install deps & build
-        run: |
-          npm install
-          npm run build --if-present
-
-      - name: Upload Pages artifact
-        if: success()
-        uses: actions/upload-pages-artifact@v1
-        with:
-          path: ./build
-
-      - name: Deploy to GitHub Pages
-        uses: actions/deploy-pages@v1
+          name: deployment-results
+          path: deployment_output/
